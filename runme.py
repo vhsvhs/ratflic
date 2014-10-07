@@ -158,19 +158,24 @@ def parse_df(dpath):
             last_ref = None
             last_refsite = None
         elif l.startswith( key_model ):
+            #print key_model, l
             tokens = l.split()
             last_refsite = int( tokens[2] )
             refsite_df[last_refsite] = last_df
             keyc = 2
         elif keyc == 2:
+            #print 2, l
             keyc = 1
             tokens = l.split()
             refsite_fromstate[ last_refsite ] = tokens[3]
             refsite_frompp[ last_refsite ] = tokens[4]
         elif keyc == 1:
-            keyc == 0
+            #print 1, l
+            keyc = 0
+            tokens = l.split()
             refsite_tostate[ last_refsite ] = tokens[3]
             refsite_topp[ last_refsite ] = tokens[4]
+            #print "174:", refsite_topp[ last_refsite ], refsite_frompp[ last_refsite ]
     return (refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
             
 
@@ -217,7 +222,7 @@ for seed in seed_cbiopath:
     for branch in branches_sorted:
         btok = branch.split("/")
         branch_short = btok[ btok.__len__()-1 ]
-        header += branch_short.__str__() + "\t"
+        header += branch_short.__str__() + "\t\t"
     fout.write(header + "\n")
     
 
@@ -228,7 +233,7 @@ for seed in seed_cbiopath:
         line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__() + "\t"
         
         refsite = seed2ref[seed][ data[3]-1 ]
-        print "229:", refsite
+        #print "229:", refsite
 
         line += (refsite+1).__str__() + "\t"
 
@@ -236,13 +241,18 @@ for seed in seed_cbiopath:
             if refsite+1 in branch_data[branch][0]:
                 this_df = branch_data[branch][0][refsite+1]
                 line += "%.3f"%this_df + "\t"
-                print refsite, branch_data[branch][0][refsite+1]
+                from_state = branch_data[branch][1][refsite+1]
+                from_pp = branch_data[branch][2][refsite+1]
+                to_state = branch_data[branch][3][refsite+1]
+                to_pp = branch_data[branch][4][refsite+1]
+                line += from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")\t"
+                
             else:
                 #q = branch_data[branch][0].keys()
                 #q.sort()
                 #print "236:", refsite, q 
                 #exit()
-                line += "NA\t"
+                line += "NA\tNA\t"
 
             #(refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
 
