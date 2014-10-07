@@ -15,7 +15,7 @@ ap = ArgParser(sys.argv)
 
 msa_path = "../2014-Feb25/msaprobs/cmgc.msaprobs.phylip"
 
-seed_cbiopath = {"Homo.sapiens.CDK1":"cBioPortal/cdkl.txt",
+seed_cbiopath = {"Homo.sapiens.CDK1":"cBioPortal/cdk1.txt",
                  "Homo.sapiens.CDK2":"cBioPortal/cdk2.txt",
                  "Homo.sapiens.CDK4":"cBioPortal/cdk4.txt",
                  "Homo.sapiens.CDK6":"cBioPortal/cdk6.txt",
@@ -28,7 +28,7 @@ seed_cbiopath = {"Homo.sapiens.CDK1":"cBioPortal/cdkl.txt",
 branch_dirs = [] # a list of directories, one directory for each branch, containing mutation information
 for d in os.listdir("../2014-Feb25"):
     if d.startswith("Anc") and d.__contains__("to"):
-        branch_dirs.append(d)
+        branch_dirs.append("../2014-Feb25/" + d)
                
 
 def build_site_map(mpath):
@@ -107,7 +107,7 @@ def read_cbio_file(cpath):
         if mu.__len__() == 3:
             site = int( mu[1] )
         else:
-            site = int( mu[1:mu.__len__()-2] )
+            site = int( mu[1:mu.__len__()-1] )
         type = tokens[type_ii]
         next = type_ii + 1
         copy = tokens[next]
@@ -135,9 +135,68 @@ def read_cbio_file(cpath):
 
 
 def parse_df(dpath):
-    pass # continue here!
+    if False == os.path.exists(dpath):
+        print "\n. Error, I cannot find your Df path at", dpath
+        exit()
+    
+    key_model = "msaprobs.PROTCATLG"
+
+    refsite_df = {}
+    refsite_fromstate = {}
+    refsite_frompp = {}
+    refsite_tostate = {}
+    refsite_topp = {}
+
+    fin = open(dpath, "r")
+    last_df = None
+    last_refsite = None
+    keyc = 0
+    for l in fin.xreadlines():
+        if l.startswith("-->"):
+            tokens = l.split()
+            last_df = float(tokens[3])
+            last_ref = None
+            last_refsite = None
+        elif l.startswith( key_model ):
+            tokens = l.split()
+            last_refsite = int( tokens[2] )
+            refsite_df[last_refsite] = last_df
+            keyc = 2
+        elif keyc == 2:
+            keyc = 1
+            tokens = l.split()
+            refsite_fromstate[ last_refsite ] = tokens[3]
+            refsite_frompp[ last_refsite ] = tokens[4]
+        elif keyc == 1:
+            keyc == 0
+            refsite_tostate[ last_refsite ] = tokens[3]
+            refsite_topp[ last_refsite ] = tokens[4]
+    return (refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
+            
 
 (ref2seed, seed2ref) = build_site_map(msa_path)
+
+#
+#
+#
+branch_data = {}
+for dir in branch_dirs:
+    x = parse_df( dir + "/Df.details.txt")
+    branch_data[dir] = x
+
+branches_sorted = branch_data.keys()
+branches_sorted.sort()
+
+
+#
+# test:
+#
+#print branch_data[ branches_sorted[0] ][0]
+#print branch_data[ branches_sorted[0] ][1]
+#print branch_data[ branches_sorted[0] ][2]
+#print branch_data[ branches_sorted[0] ][3]
+#print branch_data[ branches_sorted[0] ][4]
+#exit()
 
 
 #
@@ -147,10 +206,6 @@ for seed in seed_cbiopath:
     if seed not in ref2seed:
         print "\n. I can't find the taxa", seed, "in your MSA. I'm skipping it!"
         continue
-
-    if False == os.path.exists( seed_cbiopath[seed] ):
-        print "\n. Error, I can't find your cBioPortal data directory at", seed_cbiopath[seed]
-        continue
     
     mu_data = read_cbio_file( seed_cbiopath[seed] )
     if mu_data.__len__() <= 0:
@@ -158,13 +213,41 @@ for seed in seed_cbiopath:
     
     """Open an Excel file and write data as we gather it."""
     fout = open(seed + ".xls", "w")
+    header = "Mutation\tfrom\tto\tsite in cBioPortal\tsite in msaprobs\t"
+    for branch in branches_sorted:
+        btok = branch.split("/")
+        branch_short = btok[ btok.__len__()-1 ]
+        header += branch_short.__str__() + "\t"
+    fout.write(header + "\n")
+    
+
     for muname in mu_data:
         data = mu_data[muname]
         line = muname + "\t"
-        line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__()
-        refsite = seed2ref[seed][ data[3] ]
-        #print line, refsite
+        """site, to state, from state"""
+        line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__() + "\t"
+        
+        refsite = seed2ref[seed][ data[3]-1 ]
+        print "229:", refsite
 
+        line += (refsite+1).__str__() + "\t"
+
+        for branch in branches_sorted:
+            if refsite+1 in branch_data[branch][0]:
+                this_df = branch_data[branch][0][refsite+1]
+                line += "%.3f"%this_df + "\t"
+                print refsite, branch_data[branch][0][refsite+1]
+            else:
+                #q = branch_data[branch][0].keys()
+                #q.sort()
+                #print "236:", refsite, q 
+                #exit()
+                line += "NA\t"
+
+            #(refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
+
+        line += "\n"
+        fout.write(line)
 
     fout.close()
 
