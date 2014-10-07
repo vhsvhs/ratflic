@@ -194,19 +194,21 @@ branches_sorted.sort()
 
 
 #
-# test:
+# Excel styles:
 #
-#print branch_data[ branches_sorted[0] ][0]
-#print branch_data[ branches_sorted[0] ][1]
-#print branch_data[ branches_sorted[0] ][2]
-#print branch_data[ branches_sorted[0] ][3]
-#print branch_data[ branches_sorted[0] ][4]
-#exit()
+from xlwt import Workbook, easyxf, Borders
+hit_style1 = easyxf('pattern: pattern solid, fore_colour yellow;')
+stripe_style1 = easyxf('pattern: pattern solid, fore_colour white;')
+stripe_style2 = easyxf('pattern: pattern solid, fore_colour white;')
+header_style = easyxf('font: bold True;')
 
 
 #
 #
 #
+
+book = Workbook()
+
 for seed in seed_cbiopath:
     if seed not in ref2seed:
         print "\n. I can't find the taxa", seed, "in your MSA. I'm skipping it!"
@@ -217,50 +219,113 @@ for seed in seed_cbiopath:
         print "\n. I didn't find any data in", seed_cbiopath[seed]
     
     """Open an Excel file and write data as we gather it."""
-    fout = open(seed + ".xls", "w")
-    header = "Mutation\tfrom\tto\tsite in cBioPortal\tsite in msaprobs\t"
+    #fout = open(seed + ".xls", "w")
+    sheet1 = book.add_sheet(seed)
+    sheet1.write(0,0,"ID", header_style)
+    sheet1.col(0).width = 6500
+    sheet1.write(0,1,"Mutation (cBioPortal)", header_style)
+    sheet1.col(1).width = 4200
+    #sheet1.write(0,2,"from")
+    #sheet1.write(0,3,"to")
+    sheet1.write(0,2,"site (MSAProbs)", header_style)
+    sheet1.col(2).width = 3800
+
+
+    #header = "Mutation\tsite (cBioPortal)\tfrom\tto\tsite (MSAProbs)\t"
+    col = 3
     for branch in branches_sorted:
         btok = branch.split("/")
         branch_short = btok[ btok.__len__()-1 ]
-        header += branch_short.__str__() + "\t\t"
-    fout.write(header + "\n")
+        #sheet1.write_merge(0,0,col,col+1, "Df: " + branch_short)
+        sheet1.write(0,col,branch_short, header_style)
+        sheet1.col(col).width = 6000
+        col += 1
+        #sheet1.write(0,col,"Mutation"
+#    header += branch_short.__str__() + "\t\t"
+    #fout.write(header + "\n")
     
 
+    row = 1
+    col = None
     for muname in mu_data:
         data = mu_data[muname]
-        line = muname + "\t"
+        #line = muname + "\t"
+        sheet1.write(row,0,muname)
         """site, to state, from state"""
-        line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__() + "\t"
-        
+        #line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__() + "\t"
+
+        #sheet1.write(row, 3, data[1] )
+        #sheet1.write(row, 2, data[2] )
+        sheet1.write(row, 1, data[1].__str__() + data[3].__str__() + data[2].__str__() )
         refsite = seed2ref[seed][ data[3]-1 ]
+        sheet1.write(row, 2, refsite+1 )
         #print "229:", refsite
 
-        line += (refsite+1).__str__() + "\t"
+        #line += (refsite+1).__str__() + "\t"
 
+        col = 2
+        branch_count = 0
         for branch in branches_sorted:
+            branch_count += 1
             if refsite+1 in branch_data[branch][0]:
                 this_df = branch_data[branch][0][refsite+1]
-                line += "%.3f"%this_df + "\t"
+                #line += "%.3f"%this_df + "\t"
                 from_state = branch_data[branch][1][refsite+1]
                 from_pp = branch_data[branch][2][refsite+1]
                 to_state = branch_data[branch][3][refsite+1]
                 to_pp = branch_data[branch][4][refsite+1]
-                line += from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")\t"
                 
+                if from_state == "-":
+                    from_pp = "n/a"
+                    from_state = "-"
+                if to_state == "-":
+                    to_pp = "n/a"
+                    to_state = "-"
+
+                #line += from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")\t"
+               
+                """Reversion?"""
+                if to_state == data[2].__str__() and from_state != to_state:
+                    #col += 1
+                    #sheet1.write(row, col, this_df, hit_style1)
+                    col += 1
+                    sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", hit_style1)
+                else:
+                    st = stripe_style2
+                    if branch_count%2 == 0:
+                        st = stripe_style1
+
+                    #col += 1
+                    #sheet1.write(row, col, this_df)
+                    col += 1
+                    sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", st)
+ 
             else:
                 #q = branch_data[branch][0].keys()
                 #q.sort()
                 #print "236:", refsite, q 
                 #exit()
-                line += "NA\tNA\t"
+                #line += "NA\tNA\t"
+                st = stripe_style2
+                if branch_count%2 == 0:
+                    st = stripe_style1
+
+                #col += 1
+                #sheet1.write(row,col, "NA")
+                col += 1
+                sheet1.write(row,col, "NA", st)
 
             #(refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
 
-        line += "\n"
-        fout.write(line)
+        row += 1
 
-    fout.close()
+        #line += "\n"
+        #fout.write(line)
 
+    #fout.close()
+
+
+    book.save("ASR-cBio.10-6-2014.xls")
 
     #print seed
     #for x in mu_data:
