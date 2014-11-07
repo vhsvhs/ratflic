@@ -31,6 +31,16 @@ for d in os.listdir("../2014-Feb25"):
         branch_dirs.append("../2014-Feb25/" + d)
                
 
+from string import uppercase 
+def col_idx2str(idx): 
+    idx += 1 
+    col = '' 
+    while (idx > 0): 
+        mod = (idx - 1) % 26 
+        col = uppercase[mod] + col 
+        idx = (idx - mod) / 26 
+    return col 
+
 def build_site_map(mpath):
     """Returns (ref2seed, seed2ref)"""
     
@@ -225,7 +235,7 @@ for branch in branch_musites:
 #
 # Excel styles:
 #
-from xlwt import Workbook, easyxf, Borders
+from xlwt import Workbook, easyxf, Borders, Formula, XFStyle
 hit_style1 = easyxf('pattern: pattern solid, fore_colour orange;')
 hit_style2 = easyxf('pattern: pattern solid, fore_colour yellow;')
 hit_style3 = easyxf('pattern: pattern solid, fore_colour yellow;')
@@ -235,6 +245,9 @@ stripe_style2 = easyxf('pattern: pattern solid, fore_colour white;')
 header_style = easyxf('font: bold True;')
 wrap_style = easyxf('align: wrap 1;')
 center_style = easyxf('alignment: horizontal center;')
+
+stats_style = XFStyle()
+stats_style.num_format_str = "0.0000"
 
 #
 #
@@ -362,31 +375,89 @@ for seed in seed_cbiopath:
     
     row += 1
     col = 2
-    sheet.write(row, col, "hits:")
+    sheet1.write(row, col, "hits:")
     for branch in branches_sorted:
         col += 1
         sheet1.write(row,col, branch_counthits[branch], st)
 
     row += 1
     col = 2
-    sheet.write(row, col, "hit max possible:")
+    sheet1.write(row, col, "hit max possible:", wrap_style)
     for branch in branches_sorted:
         col += 1
         sheet1.write(row,col, branch_countvalidsites[branch], st)
         
     row += 1
     col = 2
-    sheet.write(row, col, "Count mu on branch:")
+    sheet1.write(row, col, "Count mu on branch:", wrap_style)
     for branch in branches_sorted:
         col += 1
         sheet1.write(row,col, branch_musites[branch].__len__(), st)
 
     row += 1
     col = 2
-    sheet.write(row, col, "Total sites:")
+    sheet1.write(row, col, "Count sites in ancestors:", wrap_style)
     for branch in branches_sorted:
         col += 1
         sheet1.write(row,col, branch_data[branch][0].keys().__len__(), st)
+
+    row += 1
+    col = 2
+    sheet1.write(row, col, "Hypergeometric Test:", wrap_style)
+    for branch in branches_sorted:
+        col += 1
+        # the previous row is 'row'
+        fstring = "HYPGEOMDIST(" + col_idx2str(col) + (row-3).__str__() 
+        fstring += "," + col_idx2str(col) + (row-2).__str__() 
+        fstring += "," + col_idx2str(col) + (row-1).__str__() 
+        fstring += "," + col_idx2str(col) + (row).__str__() 
+        fstring += ")"
+        sheet1.write(row,col, Formula(fstring), stats_style)
+
+    row += 1
+    col = 2
+    sheet1.write(row, col, "Sanity Check:", wrap_style)
+    for branch in branches_sorted:
+        col += 1
+        # the previous row is 'row'
+        fstring = "0 "
+        for ii in range(0, branch_countvalidsites[branch]+1):
+            fstring += "+ HYPGEOMDIST(" + ii.__str__() 
+            fstring += "," + col_idx2str(col) + (row-3).__str__() 
+            fstring += "," + col_idx2str(col) + (row-2).__str__() 
+            fstring += "," + col_idx2str(col) + (row-1).__str__() 
+            fstring += ")"
+        sheet1.write(row,col, Formula(fstring), stats_style)
+
+    row += 1
+    col = 2
+    sheet1.write(row, col, "<= Cummu. HG Test:", wrap_style)
+    for branch in branches_sorted:
+        col += 1
+        # the previous row is 'row'
+        fstring = "0 "
+        for ii in range(0, branch_counthits[branch]+1):
+            fstring += "+ HYPGEOMDIST(" + ii.__str__() 
+            fstring += "," + col_idx2str(col) + (row-4).__str__() 
+            fstring += "," + col_idx2str(col) + (row-3).__str__() 
+            fstring += "," + col_idx2str(col) + (row-2).__str__() 
+            fstring += ")"
+        sheet1.write(row,col, Formula(fstring), stats_style)
+
+    row += 1
+    col = 2
+    sheet1.write(row, col, ">= Cummu. HG Test:", wrap_style)
+    for branch in branches_sorted:
+        col += 1
+        # the previous row is 'row'
+        fstring = "0 "
+        for ii in range(branch_counthits[branch], branch_countvalidsites[branch]+1):
+            fstring += "+ HYPGEOMDIST(" + ii.__str__() 
+            fstring += "," + col_idx2str(col) + (row-5).__str__() 
+            fstring += "," + col_idx2str(col) + (row-4).__str__() 
+            fstring += "," + col_idx2str(col) + (row-3).__str__() 
+            fstring += ")"
+        sheet1.write(row,col, Formula(fstring), stats_style)
 
     book.save("ASR-cBio.11-7-2014.xls")
 
