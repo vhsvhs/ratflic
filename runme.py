@@ -257,7 +257,7 @@ for seed in seed_cbiopath:
         branch_counthits[branch] = 0
 
     branch_countvalidsites = {} # count the number of cBio sites that actually existed on this branch
-    for branch in branch_countvalidsites:
+    for branch in branches_sorted:
         branch_countvalidsites[branch] = 0
 
     """Open an Excel file and write data as we gather it."""
