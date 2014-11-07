@@ -190,35 +190,37 @@ def parse_df(dpath):
 
 (ref2seed, seed2ref) = build_site_map(msa_path)
 
-#
-#
-#
-branch_data = {}
-branch_musites = {}
-for dir in branch_dirs:
-    x = parse_df( dir + "/Df.details.txt")
-    branch_data[dir] = x
-    branch_musites[dir] = []
+
+def get_branch_data(branchname):
+    """x = (refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)"""
+    x = parse_df( branchname + "/Df.details.txt")
+    return x
+
+def get_branch_musites(branchname, ppthresh = 0.6):
+    """x = (refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)"""
+    x = parse_df( branchname + "/Df.details.txt")
+    branch_musites[branchname] = []
     for site in x[0]:
         if x[1][site] != x[3][site]:
             if float( x[2][site] ) > 0.6 or float( x[4][site] ) > 0.6:
-                branch_musites[dir].append( site )
+                branch_musites[branchname].append( site )
+    return branch_musites
+
+#
+# branch_data
+#
+branch_data = {}
+branch_musites = {}
+for branchname in branch_dirs:
+    branch_data[branchname] = get_branch_data(branchname)
+    branch_musites = get_branch_musites(branchname)
+
 
 branches_sorted = branch_data.keys()
 branches_sorted.sort()
 
 for branch in branch_musites:
     print branch, branch_musites[branch].__len__()
-
-for seed in seed_cbiopath:
-    if seed not in ref2seed:
-        print "\n. I can't find the taxa", seed, "in your MSA. I'm skipping it!"
-        continue
-    branch_hits = {}
-    for branch in branches_sorted:
-        branch_hits[branch] = 0
-        for site in site_mu_data:
-            pass
 
 #
 # Excel styles:
@@ -249,6 +251,14 @@ for seed in seed_cbiopath:
         print "\n. I didn't find any data in", seed_cbiopath[seed]
     
     site_mu_data = collapse_mu_data( mu_data )
+    
+    branch_counthits = {}
+    for branch in branches_sorted:
+        branch_counthits[branch] = 0
+
+    branch_countvalidsites = {} # count the number of cBio sites that actually existed on this branch
+    for branch in branch_countvalidsites:
+        branch_countvalidsites[branch] = 0
 
     """Open an Excel file and write data as we gather it."""
     sheet1 = book.add_sheet(seed)
@@ -273,7 +283,7 @@ for seed in seed_cbiopath:
     col = None
     """One site per row."""
     for site in site_mu_data:
-        count_mu_branches = 0
+        count_mu_branches = 0 # count the number of branches that have a mutation at this site.
         found_mu_for_row = False
         found_convergent_mu_for_row = False
 
@@ -303,6 +313,8 @@ for seed in seed_cbiopath:
         for branch in branches_sorted:
             branch_count += 1
             if refsite+1 in branch_data[branch][0]:
+                branch_countvalidsites[branch] += 1
+                
                 this_df = branch_data[branch][0][refsite+1]
                 from_state = branch_data[branch][1][refsite+1]
                 from_pp = branch_data[branch][2][refsite+1]
@@ -320,11 +332,13 @@ for seed in seed_cbiopath:
                 if to_state in fromaas and from_state != to_state:
                     found_convergent_mu_for_row = True
                     count_mu_branches += 1
+                    branch_counthits[branch] += 1
                     col += 1
                     sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", hit_style1)
                 elif (from_state != to_state) and to_pp != "n/a" and ( float(to_pp) > 0.6 ):
                     found_mu_for_row = True
                     count_mu_branches += 1
+                    branch_counthits[branch] += 1
                     col += 1
                     sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", hit_style2)
                 else:
@@ -344,10 +358,37 @@ for seed in seed_cbiopath:
 
         if count_mu_branches > 0:
             sheet1.write(row,col+1, count_mu_branches, center_style)
-
         row += 1
+    
+    row += 1
+    col = 2
+    sheet.write(row, col, "hits:")
+    for branch in branches_sorted:
+        col += 1
+        sheet1.write(row,col, branch_counthits[branch], st)
 
-    book.save("ASR-cBio.10-8-2014.xls")
+    row += 1
+    col = 2
+    sheet.write(row, col, "hit max possible:")
+    for branch in branches_sorted:
+        col += 1
+        sheet1.write(row,col, branch_countvalidsites[branch], st)
+        
+    row += 1
+    col = 2
+    sheet.write(row, col, "Count mu on branch:")
+    for branch in branches_sorted:
+        col += 1
+        sheet1.write(row,col, branch_musites[branch].__len__(), st)
+
+    row += 1
+    col = 2
+    sheet.write(row, col, "Total sites:")
+    for branch in branches_sorted:
+        col += 1
+        sheet1.write(row,col, branch_data[branch][0].keys().__len__(), st)
+
+    book.save("ASR-cBio.11-7-2014.xls")
 
 exit()
 
