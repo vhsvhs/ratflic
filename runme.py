@@ -34,7 +34,7 @@ for d in os.listdir("../2014-Feb25"):
 def build_site_map(mpath):
     """Returns (ref2seed, seed2ref)"""
     
-    """msapath is the filepath to a PHYLIP aligned file."""
+    """mpath is the filepath to a PHYLIP aligned file."""
     if False == os.path.exists(mpath):
         print "\n. Error: I can't find your MSA file at", msapth
         exit()
@@ -68,7 +68,7 @@ def read_cbio_file(cpath):
         print "\n. Error, I cannot find your cBioPortal data file at", cpath
         exit()
     
-    mu_data = {}
+    mu_data = {} # key = site
         
     fin = open(cpath, "r")
     for l in fin.xreadlines():
@@ -134,6 +134,15 @@ def read_cbio_file(cpath):
     return mu_data
 
 
+def collapse_mu_data(mu_data):
+    site_mu_data = {} # key = site, value = mu_data hashes corresponding to that site
+    for muname in mu_data:
+        site = mu_data[muname][3]
+        if site not in site_mu_data:
+            site_mu_data[site] = {}
+        site_mu_data[site][muname] = mu_data[muname]
+    return site_mu_data
+
 def parse_df(dpath):
     if False == os.path.exists(dpath):
         print "\n. Error, I cannot find your Df path at", dpath
@@ -185,28 +194,49 @@ def parse_df(dpath):
 #
 #
 branch_data = {}
+branch_musites = {}
 for dir in branch_dirs:
     x = parse_df( dir + "/Df.details.txt")
     branch_data[dir] = x
+    branch_musites[dir] = []
+    for site in x[0]:
+        if x[1][site] != x[3][site]:
+            if float( x[2][site] ) > 0.6 or float( x[4][site] ) > 0.6:
+                branch_musites[dir].append( site )
 
 branches_sorted = branch_data.keys()
 branches_sorted.sort()
 
+for branch in branch_musites:
+    print branch, branch_musites[branch].__len__()
+
+for seed in seed_cbiopath:
+    if seed not in ref2seed:
+        print "\n. I can't find the taxa", seed, "in your MSA. I'm skipping it!"
+        continue
+    branch_hits = {}
+    for branch in branches_sorted:
+        branch_hits[branch] = 0
+        for site in site_mu_data:
+            pass
 
 #
 # Excel styles:
 #
 from xlwt import Workbook, easyxf, Borders
-hit_style1 = easyxf('pattern: pattern solid, fore_colour yellow;')
+hit_style1 = easyxf('pattern: pattern solid, fore_colour orange;')
+hit_style2 = easyxf('pattern: pattern solid, fore_colour yellow;')
+hit_style3 = easyxf('pattern: pattern solid, fore_colour yellow;')
+
 stripe_style1 = easyxf('pattern: pattern solid, fore_colour white;')
 stripe_style2 = easyxf('pattern: pattern solid, fore_colour white;')
 header_style = easyxf('font: bold True;')
-
+wrap_style = easyxf('align: wrap 1;')
+center_style = easyxf('alignment: horizontal center;')
 
 #
 #
 #
-
 book = Workbook()
 
 for seed in seed_cbiopath:
@@ -218,50 +248,55 @@ for seed in seed_cbiopath:
     if mu_data.__len__() <= 0:
         print "\n. I didn't find any data in", seed_cbiopath[seed]
     
+    site_mu_data = collapse_mu_data( mu_data )
+
     """Open an Excel file and write data as we gather it."""
-    #fout = open(seed + ".xls", "w")
     sheet1 = book.add_sheet(seed)
-    sheet1.write(0,0,"ID", header_style)
-    sheet1.col(0).width = 6500
-    sheet1.write(0,1,"Mutation (cBioPortal)", header_style)
-    sheet1.col(1).width = 4200
-    #sheet1.write(0,2,"from")
-    #sheet1.write(0,3,"to")
+    sheet1.write(0,0,"Site (cBioPortal)", header_style)
+    sheet1.col(0).width = 3700
+    sheet1.write(0,1,"Observed mutations (cBioPortal)", header_style)
+    sheet1.col(1).width = 7000
     sheet1.write(0,2,"site (MSAProbs)", header_style)
     sheet1.col(2).width = 3800
 
-
-    #header = "Mutation\tsite (cBioPortal)\tfrom\tto\tsite (MSAProbs)\t"
     col = 3
     for branch in branches_sorted:
         btok = branch.split("/")
         branch_short = btok[ btok.__len__()-1 ]
-        #sheet1.write_merge(0,0,col,col+1, "Df: " + branch_short)
         sheet1.write(0,col,branch_short, header_style)
         sheet1.col(col).width = 6000
         col += 1
-        #sheet1.write(0,col,"Mutation"
-#    header += branch_short.__str__() + "\t\t"
-    #fout.write(header + "\n")
     
+    sheet1.write(0,col,"N hits", header_style)
 
     row = 1
     col = None
-    for muname in mu_data:
-        data = mu_data[muname]
-        #line = muname + "\t"
-        sheet1.write(row,0,muname)
+    """One site per row."""
+    for site in site_mu_data:
+        count_mu_branches = 0
+        found_mu_for_row = False
+        found_convergent_mu_for_row = False
+
+        sheet1.write(row,0,site,center_style)
+
+        fromaas = []
+        toaas = []
+
+        mutations = []
+        for muname in site_mu_data[site]:
+            data = mu_data[muname]
+            fromaa = data[1]
+            toaa = data[2]
+            if fromaa not in fromaas:
+                fromaas.append( fromaa )
+            if toaa not in toaas:
+                toaas.append( toaa )
+            mutations.append( fromaa + "->" + toaa)
+        sheet1.write(row,1, ", ".join( mutations ), wrap_style)
+
         """site, to state, from state"""
-        #line += data[1].__str__() + "\t" + data[2].__str__() + "\t" + data[3].__str__() + "\t"
-
-        #sheet1.write(row, 3, data[1] )
-        #sheet1.write(row, 2, data[2] )
-        sheet1.write(row, 1, data[1].__str__() + data[3].__str__() + data[2].__str__() )
-        refsite = seed2ref[seed][ data[3]-1 ]
-        sheet1.write(row, 2, refsite+1 )
-        #print "229:", refsite
-
-        #line += (refsite+1).__str__() + "\t"
+        refsite = seed2ref[seed][ site_mu_data[site][ site_mu_data[site].keys()[0] ][3] - 1]
+        sheet1.write(row, 2, refsite+1, center_style)
 
         col = 2
         branch_count = 0
@@ -269,7 +304,6 @@ for seed in seed_cbiopath:
             branch_count += 1
             if refsite+1 in branch_data[branch][0]:
                 this_df = branch_data[branch][0][refsite+1]
-                #line += "%.3f"%this_df + "\t"
                 from_state = branch_data[branch][1][refsite+1]
                 from_pp = branch_data[branch][2][refsite+1]
                 to_state = branch_data[branch][3][refsite+1]
@@ -282,69 +316,40 @@ for seed in seed_cbiopath:
                     to_pp = "n/a"
                     to_state = "-"
 
-                #line += from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")\t"
-               
                 """Reversion?"""
-                if to_state == data[2].__str__() and from_state != to_state:
-                    #col += 1
-                    #sheet1.write(row, col, this_df, hit_style1)
+                if to_state in fromaas and from_state != to_state:
+                    found_convergent_mu_for_row = True
+                    count_mu_branches += 1
                     col += 1
                     sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", hit_style1)
+                elif (from_state != to_state) and to_pp != "n/a" and ( float(to_pp) > 0.6 ):
+                    found_mu_for_row = True
+                    count_mu_branches += 1
+                    col += 1
+                    sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", hit_style2)
                 else:
                     st = stripe_style2
                     if branch_count%2 == 0:
                         st = stripe_style1
 
-                    #col += 1
-                    #sheet1.write(row, col, this_df)
                     col += 1
                     sheet1.write(row, col, from_state + "(" + from_pp + ") -> " + to_state + "(" + to_pp + ")", st)
  
             else:
-                #q = branch_data[branch][0].keys()
-                #q.sort()
-                #print "236:", refsite, q 
-                #exit()
-                #line += "NA\tNA\t"
                 st = stripe_style2
                 if branch_count%2 == 0:
                     st = stripe_style1
-
-                #col += 1
-                #sheet1.write(row,col, "NA")
                 col += 1
                 sheet1.write(row,col, "NA", st)
 
-            #(refsite_df, refsite_fromstate, refsite_frompp, refsite_tostate, refsite_topp)
+        if count_mu_branches > 0:
+            sheet1.write(row,col+1, count_mu_branches, center_style)
 
         row += 1
 
-        #line += "\n"
-        #fout.write(line)
-
-    #fout.close()
-
-
-    book.save("ASR-cBio.10-6-2014.xls")
-
-    #print seed
-    #for x in mu_data:
-    #    print x, mu_data[x]
-
-        
+    book.save("ASR-cBio.10-8-2014.xls")
 
 exit()
-    
-
-
-
-
-
-exit()
-print ref2seed[seed_taxa]
-print seed2ref[seed_taxa]
-
-#for branch in branch_dirs():
 
 
 
